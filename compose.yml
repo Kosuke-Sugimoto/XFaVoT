@@ -1,0 +1,42 @@
+# docker-composeはサービスの定義・自動化に重きを置いている
+# そのため対話的な使用には少し回り道が必要
+# ⇒ docker composeをバックグラウンド(-d)で起動する必要アリ
+version: "2.21.0"
+services:
+  vc:
+    # image, build両方指定することで
+    # 無ければbuildという振る舞いになる
+    image: vc_image:v1
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vc
+    # tty+stdin_open = -it
+    tty: true
+    stdin_open: true
+    ipc: host
+    runtime: nvidia
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - type: bind
+        source: ./
+        target: /work/
+      - type: bind
+        source: /mnt/hdd1/Datasets/Raw/
+        target: /work/Datasets/
+      - type: bind
+        source: /mnt/hdd1/Checkpoints/
+        target: /work/Checkpoints/
+      - type: bind
+        source: /mnt/hdd2/Results/
+        target: /work/Results/
+    # サービスへのgpuの割り当て
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
