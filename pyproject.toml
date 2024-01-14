@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "work"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = {version = "2.0.0+cu117", source = "torch_cu117"}
+torchvision = {version = "0.15.1+cu117", source = "torch_cu117"}
+torchaudio = {version = "2.0.1", source = "torch_cu117"}
+librosa = "^0.10.1"
+scipy = "^1.11.4"
+soxr = "^0.3.7"
+tqdm = "^4.66.1"
+wandb = "^0.16.2"
+omegaconf = "^2.3.0"
+munch = "^4.0.0"
+
+
+[[tool.poetry.source]]
+name = "torch_cu117"
+url = "https://download.pytorch.org/whl/cu117"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

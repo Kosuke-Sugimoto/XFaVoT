@@ -5,25 +5,30 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN apt-get update && apt-get install -y \
     libsndfile1 \
-    python3 \
+    curl \
+    python3.9 \
+    python3.9-dev \
     python3-pip \
-    python-is-python3 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip \
-    && pip install --index-url https://download.pytorch.org/whl/cu117 \
-    torch==2.0.0+cu117 \
-    torchvision==0.15.1+cu117 \
-    torchaudio==2.0.1 \
-    && pip install \
-    librosa \
-    scipy \
-    soxr \
-    tqdm \
-    wandb \
-    tensorboard \
-    omegaconf \
-    munch
+# pythonコマンドを通すための設定
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1
+RUN update-alternatives --set python /usr/bin/python3.9
+RUN python -m pip install --upgrade pip
+
+# Poetryのインストール
+RUN curl -sSL https://install.python-poetry.org | python -
+
+# Poetryのパスの設定
+ENV PATH /root/.local/bin:$PATH
+
+# Poetryが仮想環境を生成しないようにする
+RUN poetry config virtualenvs.create false
+
+# ↑の設定を行った際、Poetryのパッケージインストール先が
+# /usr/lib/python3.9/site-packagesになっているため
+# それをPythonに認識させる必要がある
+ENV PYTHONPATH /usr/lib/python3.9/site-packages
 
 WORKDIR /work

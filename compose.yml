@@ -32,6 +32,7 @@ services:
       - type: bind
         source: /mnt/hdd2/Results/
         target: /work/Results/
+    working_dir: /work
     # サービスへのgpuの割り当て
     deploy:
       resources:
