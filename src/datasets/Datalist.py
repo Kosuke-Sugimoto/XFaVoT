@@ -90,8 +90,8 @@ class VCTKDatalist(DatalistInterface):
         return label_info
     
     def __extract_id_from_pathobj(
-            self,
-            target: Path
+        self,
+        target: Path
     ) -> str:
             return target.parent.as_posix().split("/")[-1]
     
