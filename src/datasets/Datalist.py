@@ -44,19 +44,19 @@ class VCTKDatalist(DatalistInterface):
 
         random.seed(self.seed)
 
+        # 形式
         # id: label obj
         self.label_info: dict[ str, Munch[str, str, str, str, str] ] = \
             self.__parse_info(self.info_txt_filepath)
         
-        print(self.label_info.keys())
-        
         self.datalist: Munch(list, list) = \
             self.__walk_dir(self.ext, self.data_dir)
         
+        # 形式
         # path: label obj
         # pathから抜き出したidはp{}の形だが、label_infoのkeyはpなし
         # speaker-info.txtには情報がないものも存在するのでそいつは除外
-        self.labels: dict[ str, Munch[str, str, str, str, str] ] = \
+        self.labels: dict[ Path, Munch[str, str, str, str, str] ] = \
             {path: self.label_info[self.__extract_id_from_pathobj(path)[1:]]
                 for path in self.pathlist if self.__extract_id_from_pathobj(path)[1:] in self.label_info.keys()}
 
@@ -110,7 +110,7 @@ class VCTKDatalist(DatalistInterface):
         # 使い勝手が悪すぎるのでlistに変換しておく
         # 一応pathlistのみselfでも保管
         pathlist: list[Path] = list(path_generator)
-        self.pathlist = pathlist
+        self.pathlist: list[Path] = pathlist
 
         id_set: set[str] = set([self.__extract_id_from_pathobj(path) for path in pathlist])
         id2paths: dict[list] = \
@@ -146,6 +146,57 @@ class VCTKDatalist(DatalistInterface):
 
         return datalist
 
+class CelebAHQDatalist(DatalistInterface):
+
+    def __init__(
+        self,
+        seed: int,
+        data_dir: Union[Path, str],
+        ext: str = "jpg"
+    ):
+        self.seed: int = seed
+        self.data_dir: Path = align_pathobj(data_dir)
+        self.ext: str = ext
+
+    def setup(self):
+
+        random.seed(self.seed)
+
+        self.datalist, self.labels = self.__walk_dir()
+
+    def get(self):
+        return self.datalist, self.labels
+
+    def __walk_dir(self) -> tuple[ Munch[list, list], dict[ Path, Munch[str]] ]:
+        """
+        Note:
+        返り値は
+        {}.train, {}.valでアクセスできるパス一覧
+        {}[path].genderでアクセス可能なパスに対応するドメイン一覧
+        """
+
+        path_generator: Generator[Path, None, None] = self.data_dir.glob(f"**/*.{self.ext}")
+        pathlist: list[Path] = list(path_generator)
+
+        labels: dict[ Path, Munch[str] ] = \
+            {path: Munch(gender=self.__extract_part_from_pathobj(-1, path)) for path in pathlist}
+        
+        datalist: Munch[list, list] = \
+            Munch(
+                train = [path for path in pathlist if self.__extract_part_from_pathobj(-2, path) == "train"],
+                val = [path for path in pathlist if self.__extract_part_from_pathobj(-2, path) == "val"]
+            )
+        
+        return datalist, labels
+
+    def __extract_part_from_pathobj(
+        self,
+        idx: int,
+        target: Path
+    ) -> str:
+        return target.parent.as_posix().split("/")[idx]
+
+
 if __name__=="__main__":
     vctk = VCTKDatalist(
         777,
@@ -154,4 +205,17 @@ if __name__=="__main__":
         "./Datasets/VCTK-Corpus/speaker-info.txt"
     )
     vctk.setup()
-    print(vctk.get())
+    print("===== VCTK Test =====")
+    print(vctk.get()[0].train[:10])
+    print(vctk.get()[1].popitem())
+
+    print()
+
+    celeb = CelebAHQDatalist(
+        777,
+        "./Datasets/CelebA-HQ"
+    )
+    celeb.setup()
+    print("===== CelebA-HQ Test =====")
+    print(celeb.get()[0].train[:10])
+    print(celeb.get()[1].popitem())
