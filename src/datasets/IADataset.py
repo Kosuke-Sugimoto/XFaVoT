@@ -34,18 +34,20 @@ class IADataset(Dataset):
         self.celeb_data_dir = celeb_data_dir
         self.celeb_ext = celeb_ext
 
-        self.vctk_datalist = VCTKDatalist(
+        self.vctk_datalist_obj = VCTKDatalist(
             seed=self.seed,
             test_size=self.test_size,
             data_dir=self.vctk_data_dir,
             info_txt_filepath=self.info_txt_filepath,
             ext=self.vctk_ext
         )
-        self.vctk_datalist.setup()
-        
-        self.celeb_datalist = CelebAHQDatalist(
+        self.vctk_datalist_obj.setup()
+        self.vctk_datalist, self.vctk_labels = self.vctk_datalist_obj.get()
+
+        self.celeb_datalist_obj = CelebAHQDatalist(
             seed=self.seed,
             data_dir=self.celeb_data_dir,
             ext=self.celeb_ext
         )
-        self.celeb_datalist.setup()
+        self.celeb_datalist_obj.setup()
+        self.celeb_datalist, self.celeb_labels = self.celeb_datalist_obj.get()
