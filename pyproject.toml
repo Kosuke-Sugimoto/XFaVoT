@@ -11,7 +11,7 @@ torch = {version = "2.0.0+cu117", source = "torch_cu117"}
 torchvision = {version = "0.15.1+cu117", source = "torch_cu117"}
 torchaudio = {version = "2.0.1", source = "torch_cu117"}
 librosa = "^0.10.1"
-scipy = "^1.11.4"
+scipy = "^1.8.1"
 soxr = "^0.3.7"
 tqdm = "^4.66.1"
 wandb = "^0.16.2"
