@@ -39,6 +39,7 @@ class IADataset(Dataset):
         celeb_data_dir: Union[Path, str] = \
             "./Datasets/CelebA-HQ",
         celeb_ext: str = "jpg",
+        max_used_ids: int = 20
     ):
         self.celeb_transformer = celeb_transformer
         self.seed = seed
@@ -50,13 +51,15 @@ class IADataset(Dataset):
         self.vctk_ext = vctk_ext
         self.celeb_data_dir = celeb_data_dir
         self.celeb_ext = celeb_ext
+        self.max_used_ids = max_used_ids
 
         self.vctk_datalist_obj = VCTKDatalist(
             seed=self.seed,
             test_size=self.test_size,
             data_dir=self.vctk_data_dir,
             info_txt_filepath=self.vctk_info_txt_filepath,
-            ext=self.vctk_ext
+            ext=self.vctk_ext,
+            max_used_ids=max_used_ids
         )
         self.vctk_datalist_obj.setup()
         self.vctk_datalist, self.vctk_labels, self.vctk_usedid2idx, self.vctk_usedid2idx_reverse, self.vctk_id2trval = \
@@ -178,8 +181,8 @@ class IADataset(Dataset):
 
 
 class Collater(object):
-    def __init__(self):
-        self.max_mel_length = 192
+    def __init__(self, max_mel_length):
+        self.max_mel_length = max_mel_length
 
     def __call__(self, batch):
         batch_size = len(batch)
@@ -233,7 +236,8 @@ def build_train_dataloader(
     img_size=256,
     batch_size=8,
     prob=0.5,
-    num_workers=2
+    num_workers=2,
+    max_mel_length=192
 ):
     crop = transforms.RandomResizedCrop(
         img_size, scale=[0.8, 1.0], ratio=[0.9, 1.1])
@@ -250,7 +254,7 @@ def build_train_dataloader(
     ])
 
     dataset = IADataset(celeb_transformer=transform)
-    collate_fn = Collater()
+    collate_fn = Collater(max_mel_length)
 
     return DataLoader(
         dataset=dataset,
@@ -266,7 +270,8 @@ def build_val_dataloader(
     img_size=256,
     shuffle=True,
     batch_size=8,
-    num_workers=2
+    num_workers=2,
+    max_mel_length=192
 ):
     height, width = img_size, img_size
     mean = [0.5, 0.5, 0.5]
@@ -283,7 +288,7 @@ def build_val_dataloader(
         celeb_transformer=transform,
         is_train=False
     )
-    collate_fn = Collater()
+    collate_fn = Collater(max_mel_length)
 
     return DataLoader(
         dataset=dataset,

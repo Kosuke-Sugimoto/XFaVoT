@@ -33,13 +33,15 @@ class VCTKDatalist(DatalistInterface):
         test_size: float,
         data_dir: Union[Path, str],
         info_txt_filepath: Union[Path, str],
-        ext: str = "wav"
+        ext: str = "wav",
+        max_used_ids: int = 20
     ):
         self.seed: int = seed
         self.test_size: float = test_size # for train_test_split
         self.data_dir: Path = align_pathobj(data_dir)
         self.info_txt_filepath: Path = align_pathobj(info_txt_filepath)
         self.ext = ext
+        self.max_used_ids = max_used_ids
 
     def setup(self):
 
@@ -164,7 +166,7 @@ class VCTKDatalist(DatalistInterface):
                 cnt += 1
             return Munch(train=train, val=val)
 
-        datalist: Munch[list, list] = make_datalist(id2trval)
+        datalist: Munch[list, list] = make_datalist(id2trval, self.max_used_ids)
 
         return datalist
 
