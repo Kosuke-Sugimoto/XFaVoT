@@ -1,6 +1,7 @@
 import random
 from munch import Munch
 from pathlib import Path
+from collections import defaultdict
 from typing import Union, Generator
 from abc import ABC, abstractmethod
 from sklearn.model_selection import train_test_split
@@ -59,9 +60,19 @@ class VCTKDatalist(DatalistInterface):
         self.labels: dict[ Path, Munch[str, str, str, str, str] ] = \
             {path: self.label_info[self.__extract_id_from_pathobj(path)[1:]]
                 for path in self.pathlist if self.__extract_id_from_pathobj(path)[1:] in self.label_info.keys()}
+        
+        self.used_ids: list[ str ] = \
+            list(map(lambda x: x, list(set([self.labels[path].id for path in self.datalist.train]))))
+        
+        # M/F の分、2つほどずらす
+        self.usedid2idx: dict[ str, int ] = \
+            dict(zip(self.used_ids, range(2, len(self.used_ids)+2)))
+        
+        self.usedid2idx_reverse: dict[ int, str ] = \
+            dict(zip(range(2, len(self.used_ids)+2), self.used_ids))
 
     def get(self):
-        return self.datalist, self.labels
+        return self.datalist, self.labels, self.usedid2idx, self.usedid2idx_reverse, self.id2trval
 
     def __parse_info(
         self,
@@ -134,12 +145,23 @@ class VCTKDatalist(DatalistInterface):
             return id2trval
 
         id2trval: dict[ Munch[list, list] ] = train_val_split_per_id(id2paths)
+        self.id2trval = id2trval
 
-        def make_datalist(this_id2trval: dict[ Munch[list, list] ]) -> Munch[list, list]:
+        def make_datalist(
+            this_id2trval: dict[ Munch[list, list] ],
+            num_use_ids: int = 20
+        ) -> Munch[list, list]:
             train, val = [], []
-            for _, trval in this_id2trval.items():
+            cnt = 0
+            existed_ids = list(set(map(lambda x: f"p{x.id}", list(self.label_info.values()))))
+            for id, trval in this_id2trval.items():
+                if id not in existed_ids:
+                    continue
+                if cnt >= num_use_ids:
+                    break
                 train.extend(trval.train)
                 val.extend(trval.val)
+                cnt += 1
             return Munch(train=train, val=val)
 
         datalist: Munch[list, list] = make_datalist(id2trval)
@@ -165,7 +187,7 @@ class CelebAHQDatalist(DatalistInterface):
         self.datalist, self.labels = self.__walk_dir()
 
     def get(self):
-        return self.datalist, self.labels
+        return self.datalist, self.labels, self.label2paths
 
     def __walk_dir(self) -> tuple[ Munch[list, list], dict[ Path, Munch[str]] ]:
         """
@@ -186,6 +208,12 @@ class CelebAHQDatalist(DatalistInterface):
                 train = [path for path in pathlist if self.__extract_part_from_pathobj(-2, path) == "train"],
                 val = [path for path in pathlist if self.__extract_part_from_pathobj(-2, path) == "val"]
             )
+        
+        label2paths: dict[ str, list[Path] ] = defaultdict(list)
+        for key, value in labels.items():
+            this_key = 0 if(value.gender=="male") else 1
+            label2paths[this_key].append(key)
+        self.label2paths = label2paths
         
         return datalist, labels
 
