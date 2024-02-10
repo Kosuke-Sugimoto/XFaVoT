@@ -5,6 +5,8 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 RUN apt-get update && apt-get install -y \
     libsndfile1 \
+    libgl1-mesa-dev \
+    libglib2.0-0 \
     curl \
     python3.9 \
     python3.9-dev \
