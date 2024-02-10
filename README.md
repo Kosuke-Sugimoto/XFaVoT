@@ -5,9 +5,10 @@ docker compose up -d --build
 docker compose exec vc bash
 ```
 - Docker環境内
+StarGANv2の関数を呼び出す際に`cv2`、`skimage`の呼び出しが必要となるため、`pip`にてダウンロード(poetryで解決できないため)
 ```bash
 poetry install --no-root
-pip install matplotlib
+pip install matplotlib opencv-python scikit-image
 ```
 
 ## Pythonにおけるprint関数のカーソル移動について

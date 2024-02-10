@@ -244,11 +244,14 @@ class Collater(object):
             img_tensor, ref_img_tensor1, ref_img_tensor2, img_label_gender, ref_img_label_gender, latent_code, latent_code2
 
 def build_train_dataloader(
+    vctk_data_dir = "./Datasets/VCTK-Corpus",
+    celeb_data_dir = "./Datasets/CelebA-HQ",
     img_size=256,
     batch_size=8,
     prob=0.5,
     num_workers=2,
-    max_mel_length=192
+    max_mel_length=192,
+    latent_dim=16
 ):
     crop = transforms.RandomResizedCrop(
         img_size, scale=[0.8, 1.0], ratio=[0.9, 1.1])
@@ -264,8 +267,12 @@ def build_train_dataloader(
                              std=[0.5, 0.5, 0.5]),
     ])
 
-    dataset = IADataset(celeb_transformer=transform)
-    collate_fn = Collater(max_mel_length)
+    dataset = IADataset(
+        vctk_data_dir=vctk_data_dir,
+        celeb_data_dir=celeb_data_dir,
+        celeb_transformer=transform
+    )
+    collate_fn = Collater(max_mel_length, latent_dim)
 
     return DataLoader(
         dataset=dataset,
@@ -278,11 +285,14 @@ def build_train_dataloader(
 
 
 def build_val_dataloader(
+    vctk_data_dir = "./Datasets/VCTK-Corpus",
+    celeb_data_dir = "./Datasets/CelebA-HQ",
     img_size=256,
     shuffle=True,
     batch_size=8,
     num_workers=2,
-    max_mel_length=192
+    max_mel_length=192,
+    latent_dim=16
 ):
     height, width = img_size, img_size
     mean = [0.5, 0.5, 0.5]
@@ -296,10 +306,12 @@ def build_val_dataloader(
     ])
 
     dataset = IADataset(
+        vctk_data_dir=vctk_data_dir,
+        celeb_data_dir=celeb_data_dir,
         celeb_transformer=transform,
         is_train=False
     )
-    collate_fn = Collater(max_mel_length)
+    collate_fn = Collater(max_mel_length, latent_dim)
 
     return DataLoader(
         dataset=dataset,

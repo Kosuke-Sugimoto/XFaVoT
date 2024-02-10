@@ -1,0 +1,72 @@
+# ===== Dataset =====
+
+# [ Dataset Common ]
+batch_size: 8
+num_workers: 2
+shuffle: True
+
+# [ Image Dataset ]
+celeb_data_dir: "./Datasets/CelebA-HQ"
+img_size: 256
+prob: 0.5
+
+# [ Audio Dataset ]
+vctk_data_dir: "./Datasets/VCTK-Corpus"
+# [ Spectrogram ]
+sampling_rate: 22050
+n_fft: 1024
+num_mels: 80
+hop_size: 256
+win_size: 1024
+fmin: 0
+fmax: 8000
+max_mel_length: 192
+
+# ===== Model =====
+
+# [ Common ]
+lr: 0.0004
+pct_start: 0.0
+f_lr: 0.000006
+beta1: 0.0
+beta2: 0.99
+weight_decay: 0.0004
+
+# [ Audio Model ]
+dim_in: 64
+style_dim: 64
+latent_dim: 16
+audio_num_domains: 22
+max_conv_dim: 512
+n_repeat: 4
+w_hpf: 0
+F0_channel: 256
+F0_path: "StarGANv2VC/Utils/JDC/bst.t7"
+ASR_config: "StarGANv2VC/Utils/ASR/config.yml"
+ASR_path: "StarGANv2VC/Utils/ASR/epoch_00100.pth"
+
+# [ Image Model ]
+image_num_domains: 2
+
+# ===== Training =====
+epochs: 151
+
+loss_params:
+  g_loss:
+    lambda_sty: 1.
+    lambda_cyc: 5.
+    lambda_ds: 1.
+    lambda_norm: 1.
+    lambda_asr: 10.
+    lambda_f0: 5.
+    lambda_f0_sty: 0.1
+    lambda_adv: 2.
+    lambda_adv_cls: 0.5
+    norm_bias: 0.5
+  d_loss:
+    lambda_reg: 1.
+    lambda_adv_cls: 0.1
+    lambda_con_reg: 10.
+
+  adv_cls_epoch: 50
+  con_reg_epoch: 30
