@@ -35,7 +35,7 @@ class IADataset(Dataset):
             "./Datasets/VCTK-Corpus/speaker-info.txt",
         vctk_ext: str = "wav",
         vctk_config_filepath: Union[Path, str] = \
-            "./Configs/audio_config.yml",
+            "./Configs/train_config.yml",
         celeb_data_dir: Union[Path, str] = \
             "./Datasets/CelebA-HQ",
         celeb_ext: str = "jpg",
@@ -181,8 +181,13 @@ class IADataset(Dataset):
 
 
 class Collater(object):
-    def __init__(self, max_mel_length):
+    def __init__(
+        self,
+        max_mel_length,
+        latent_dim
+    ):
         self.max_mel_length = max_mel_length
+        self.latent_dim = latent_dim
 
     def __call__(self, batch):
         batch_size = len(batch)
@@ -226,11 +231,17 @@ class Collater(object):
             img_label_gender[bid] = torch.tensor(ilabel.gender).long()
             ref_img_label_gender[bid] = torch.tensor(rilabel.gender).long()
 
+        # StarGANv2-VCのコードではz_trgに相当
+        # y_trgはref_audio_labelに依存させる
+        # 多分、ここは画像と音声で共通でなくても良いはず…
+        latent_code = torch.randn(batch_size, self.latent_dim)
+        latent_code2 = torch.randn(batch_size, self.latent_dim)
+
         mel_tensor, ref_mel_tensor1, ref_mel_tensor2 = \
             mel_tensor.unsqueeze(1), ref_mel_tensor1.unsqueeze(1), ref_mel_tensor2.unsqueeze(1)
 
         return  mel_tensor, ref_mel_tensor1, ref_mel_tensor2, audio_label_gender, audio_label_id, ref_audio_label_gender, ref_audio_label_id, \
-            img_tensor, ref_img_tensor1, ref_img_tensor2, img_label_gender, ref_img_label_gender
+            img_tensor, ref_img_tensor1, ref_img_tensor2, img_label_gender, ref_img_label_gender, latent_code, latent_code2
 
 def build_train_dataloader(
     img_size=256,
@@ -336,7 +347,7 @@ if __name__=="__main__":
 
     for i, data in enumerate(dataloader):
         mel, ref_mel1, ref_mel2, audio_gender, audio_id, ref_audio_gender, ref_audio_id, \
-        img, ref_img1, ref_img2, img_gender, ref_img_gender = data
+        img, ref_img1, ref_img2, img_gender, ref_img_gender, latent_code, latent_code2 = data
 
         mel = mel.to(device)
         ref_mel1 = ref_mel1.to(device)
@@ -350,6 +361,8 @@ if __name__=="__main__":
         ref_img2 = ref_img2.to(device)
         img_gender = img_gender.to(device)
         ref_img_gender = ref_img_gender.to(device)
+        latent_code = latent_code.to(device)
+        latent_code2 = latent_code2.to(device)
 
         with torch.no_grad():
             # BigVGAN required size: (ch, mel, time)
