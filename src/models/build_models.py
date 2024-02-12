@@ -17,7 +17,7 @@ from starganv2.core.wing import FAN
 def build_model(args, F0_model, ASR_model):
     audio_generator = AudioGenerator(args.dim_in, args.style_dim, args.max_conv_dim, w_hpf=args.w_hpf, F0_channel=args.F0_channel)
     mapping_network = MappingNetwork(args.latent_dim, args.style_dim, args.audio_num_domains, hidden_dim=args.max_conv_dim)
-    audio_style_encoder = AudioStyleEncoder(args.dim_in, args.style_dim, args.audio_num_domains, args.max_conv_dim)
+    audio_style_encoder = AudioStyleEncoder(args.dim_in, args.style_dim, args.image_num_domains, args.max_conv_dim)
     audio_discriminator = AudioDiscriminator(args.dim_in, args.audio_num_domains, args.max_conv_dim, args.n_repeat)
     # generator_ema = copy.deepcopy(generator)
     # mapping_network_ema = copy.deepcopy(mapping_network)
