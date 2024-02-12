@@ -81,16 +81,16 @@ def main(config_path):
                                       scheduler_params_dict=scheduler_params_dict)
     
     trainer = Trainer(
-        args = Munch(config.loss_params),
+        args = config,
         model = model,
+        epochs = epochs,
         optimizer = optimizer,
         device = device,
         train_dataloader = train_dataloader,
         val_dataloader = val_dataloader
     )
 
-    print(model)
-    print(optimizer)
+    trainer._train_epoch()
     
 if __name__=="__main__":
     main()

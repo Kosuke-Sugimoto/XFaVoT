@@ -18,11 +18,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from core.model import build_model
-from core.checkpoint import CheckpointIO
-from core.data_loader import InputFetcher
-import core.utils as utils
-from metrics.eval import calculate_metrics
+from starganv2.core.model import build_model
+from starganv2.core.checkpoint import CheckpointIO
+from starganv2.core.data_loader import InputFetcher
+import starganv2.core.utils as utils
+from starganv2.metrics.eval import calculate_metrics
 
 
 class Solver(nn.Module):
@@ -198,11 +198,11 @@ class Solver(nn.Module):
         calculate_metrics(nets_ema, args, step=resume_iter, mode='reference')
 
 
-def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None):
+def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None, withAudio=False):
     assert (z_trg is None) != (x_ref is None)
     # with real images
     x_real.requires_grad_()
-    out = nets.discriminator(x_real, y_org)
+    out = nets.image_discriminator(x_real, y_org)
     loss_real = adv_loss(out, 1)
     loss_reg = r1_reg(out, x_real)
 
@@ -211,19 +211,22 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, mas
         if z_trg is not None:
             s_trg = nets.mapping_network(z_trg, y_trg)
         else:  # x_ref is not None
-            s_trg = nets.style_encoder(x_ref, y_trg)
+            if withAudio:
+                s_trg = nets.audio_style_encoder(x_ref, y_trg)
+            else:
+                s_trg = nets.image_style_encoder(x_ref, y_trg)
 
-        x_fake = nets.generator(x_real, s_trg, masks=masks)
-    out = nets.discriminator(x_fake, y_trg)
+        x_fake = nets.image_generator(x_real, s_trg, masks=masks)
+    out = nets.image_discriminator(x_fake, y_trg)
     loss_fake = adv_loss(out, 0)
 
-    loss = loss_real + loss_fake + args.lambda_reg * loss_reg
+    loss = loss_real + loss_fake + args.lambda_image_reg * loss_reg
     return loss, Munch(real=loss_real.item(),
                        fake=loss_fake.item(),
                        reg=loss_reg.item())
 
 
-def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, masks=None):
+def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, masks=None, withAudio=False):
     assert (z_trgs is None) != (x_refs is None)
     if z_trgs is not None:
         z_trg, z_trg2 = z_trgs
@@ -234,33 +237,40 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, m
     if z_trgs is not None:
         s_trg = nets.mapping_network(z_trg, y_trg)
     else:
-        s_trg = nets.style_encoder(x_ref, y_trg)
+        if withAudio:
+            s_trg = nets.audio_style_encoder(x_ref, y_trg)
+        else:
+            s_trg = nets.image_style_encoder(x_ref, y_trg)
 
-    x_fake = nets.generator(x_real, s_trg, masks=masks)
-    out = nets.discriminator(x_fake, y_trg)
+    x_fake = nets.image_generator(x_real, s_trg, masks=masks)
+    out = nets.image_discriminator(x_fake, y_trg)
     loss_adv = adv_loss(out, 1)
 
     # style reconstruction loss
-    s_pred = nets.style_encoder(x_fake, y_trg)
+    s_pred = nets.image_style_encoder(x_fake, y_trg)
     loss_sty = torch.mean(torch.abs(s_pred - s_trg))
 
     # diversity sensitive loss
     if z_trgs is not None:
         s_trg2 = nets.mapping_network(z_trg2, y_trg)
     else:
-        s_trg2 = nets.style_encoder(x_ref2, y_trg)
-    x_fake2 = nets.generator(x_real, s_trg2, masks=masks)
+        if withAudio:
+            s_trg2 = nets.audio_style_encoder(x_ref2, y_trg)
+        else:
+            s_trg2 = nets.image_style_encoder(x_ref2, y_trg)
+    x_fake2 = nets.image_generator(x_real, s_trg2, masks=masks)
     x_fake2 = x_fake2.detach()
     loss_ds = torch.mean(torch.abs(x_fake - x_fake2))
 
     # cycle-consistency loss
-    masks = nets.fan.get_heatmap(x_fake) if args.w_hpf > 0 else None
-    s_org = nets.style_encoder(x_real, y_org)
-    x_rec = nets.generator(x_fake, s_org, masks=masks)
+    # masks = nets.fan.get_heatmap(x_fake) if args.w_hpf > 0 else None
+    masks = None
+    s_org = nets.image_style_encoder(x_real, y_org)
+    x_rec = nets.image_generator(x_fake, s_org, masks=masks)
     loss_cyc = torch.mean(torch.abs(x_rec - x_real))
 
-    loss = loss_adv + args.lambda_sty * loss_sty \
-        - args.lambda_ds * loss_ds + args.lambda_cyc * loss_cyc
+    loss = loss_adv + args.lambda_image_sty * loss_sty \
+        - args.lambda_image_ds * loss_ds + args.lambda_image_cyc * loss_cyc
     return loss, Munch(adv=loss_adv.item(),
                        sty=loss_sty.item(),
                        ds=loss_ds.item(),

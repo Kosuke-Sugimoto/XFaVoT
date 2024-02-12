@@ -16,6 +16,7 @@ class TimeStrech(nn.Module):
         self.scale = scale
 
     def forward(self, x):
+        
         mel_size = x.size(-1)
         
         x = F.interpolate(x, scale_factor=(1, self.scale), align_corners=False,
@@ -31,7 +32,8 @@ class TimeStrech(nn.Module):
         else:
             x = x[..., :mel_size]
         
-        return x.unsqueeze(1)
+        # return x.unsqueeze(1)
+        return x.unsqueeze(dim=0) if x.dim() == 2 else x.unsqueeze(1)
 
 ## 2. PitchShift
 class PitchShift(nn.Module):
@@ -94,6 +96,9 @@ class PhaseShuffle2d(nn.Module):
         self.random = random.Random(1)
 
     def forward(self, x, move=None):
+        if x.dim() == 3:
+            x = x.unsqueeze(dim=0)
+
         # x.size = (B, C, M, L)
         if move is None:
             move = self.random.randint(-self.n, self.n)
@@ -104,7 +109,7 @@ class PhaseShuffle2d(nn.Module):
             left = x[:, :, :, :move]
             right = x[:, :, :, move:]
             shuffled = torch.cat([right, left], dim=3)
-            
+        
         return shuffled
 
 def build_transforms():

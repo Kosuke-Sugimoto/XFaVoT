@@ -5,18 +5,18 @@ import torch
 
 from torch import nn
 from munch import Munch
-from transforms import build_transforms
+from StarGANv2VC.transforms import build_transforms
 
 import torch.nn.functional as F
 import numpy as np
 
-def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, use_r1_reg=True, use_adv_cls=False, use_con_reg=False):
+def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, use_r1_reg=True, use_adv_cls=False, use_con_reg=False, withImage=False):
     args = Munch(args)
 
     assert (z_trg is None) != (x_ref is None)
     # with real audios
     x_real.requires_grad_()
-    out = nets.discriminator(x_real, y_org)
+    out = nets.audio_discriminator(x_real, y_org)
     loss_real = adv_loss(out, 1)
     
     # R1 regularizaition (https://arxiv.org/abs/1801.04406v4)
@@ -29,7 +29,7 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, use
     loss_con_reg = torch.FloatTensor([0]).to(x_real.device)
     if use_con_reg:
         t = build_transforms()
-        out_aug = nets.discriminator(t(x_real).detach(), y_org)
+        out_aug = nets.audio_discriminator(t(x_real).detach(), y_org)
         loss_con_reg += F.smooth_l1_loss(out, out_aug)
     
     # with fake audios
@@ -37,23 +37,26 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, use
         if z_trg is not None:
             s_trg = nets.mapping_network(z_trg, y_trg)
         else:  # x_ref is not None
-            s_trg = nets.style_encoder(x_ref, y_trg)
+            if withImage:
+                s_trg = nets.image_style_encoder(x_ref, y_trg)
+            else:
+                s_trg = nets.audio_style_encoder(x_ref, y_trg)
             
         F0 = nets.f0_model.get_feature_GAN(x_real)
-        x_fake = nets.generator(x_real, s_trg, masks=None, F0=F0)
-    out = nets.discriminator(x_fake, y_trg)
+        x_fake = nets.audio_generator(x_real, s_trg, masks=None, F0=F0)
+    out = nets.audio_discriminator(x_fake, y_trg)
     loss_fake = adv_loss(out, 0)
     if use_con_reg:
-        out_aug = nets.discriminator(t(x_fake).detach(), y_trg)
+        out_aug = nets.audio_discriminator(t(x_fake).detach(), y_trg)
         loss_con_reg += F.smooth_l1_loss(out, out_aug)
     
     # adversarial classifier loss
     if use_adv_cls:
-        out_de = nets.discriminator.classifier(x_fake)
+        out_de = nets.audio_discriminator.classifier(x_fake)
         loss_real_adv_cls = F.cross_entropy(out_de[y_org != y_trg], y_org[y_org != y_trg])
         
         if use_con_reg:
-            out_de_aug = nets.discriminator.classifier(t(x_fake).detach())
+            out_de_aug = nets.audio_discriminator.classifier(t(x_fake).detach())
             loss_con_reg += F.smooth_l1_loss(out_de, out_de_aug)
     else:
         loss_real_adv_cls = torch.zeros(1).mean()
@@ -68,7 +71,7 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, use
                        real_adv_cls=loss_real_adv_cls.item(),
                        con_reg=loss_con_reg.item())
 
-def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, use_adv_cls=False):
+def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, use_adv_cls=False, withImage=False):
     args = Munch(args)
     
     assert (z_trgs is None) != (x_refs is None)
@@ -81,7 +84,10 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
     if z_trgs is not None:
         s_trg = nets.mapping_network(z_trg, y_trg)
     else:
-        s_trg = nets.style_encoder(x_ref, y_trg)
+        if withImage:
+            s_trg = nets.image_style_encoder(x_ref, y_trg)
+        else:
+            s_trg = nets.audio_style_encoder(x_ref, y_trg)
     
     # compute ASR/F0 features (real)
     with torch.no_grad():
@@ -89,8 +95,8 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
         ASR_real = nets.asr_model.get_feature(x_real)
     
     # adversarial loss
-    x_fake = nets.generator(x_real, s_trg, masks=None, F0=GAN_F0_real)
-    out = nets.discriminator(x_fake, y_trg) 
+    x_fake = nets.audio_generator(x_real, s_trg, masks=None, F0=GAN_F0_real)
+    out = nets.audio_discriminator(x_fake, y_trg) 
     loss_adv = adv_loss(out, 1)
     
     # compute ASR/F0 features (fake)
@@ -116,23 +122,26 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
     loss_asr = F.smooth_l1_loss(ASR_fake, ASR_real)
     
     # style reconstruction loss
-    s_pred = nets.style_encoder(x_fake, y_trg)
+    s_pred = nets.audio_style_encoder(x_fake, y_trg)
     loss_sty = torch.mean(torch.abs(s_pred - s_trg))
     
     # diversity sensitive loss
     if z_trgs is not None:
         s_trg2 = nets.mapping_network(z_trg2, y_trg)
     else:
-        s_trg2 = nets.style_encoder(x_ref2, y_trg)
-    x_fake2 = nets.generator(x_real, s_trg2, masks=None, F0=GAN_F0_real)
+        if withImage:
+            s_trg2 = nets.image_style_encoder(x_ref2, y_trg)
+        else:
+            s_trg2 = nets.audio_style_encoder(x_ref2, y_trg)
+    x_fake2 = nets.audio_generator(x_real, s_trg2, masks=None, F0=GAN_F0_real)
     x_fake2 = x_fake2.detach()
     _, GAN_F0_fake2, _ = nets.f0_model(x_fake2)
     loss_ds = torch.mean(torch.abs(x_fake - x_fake2))
     loss_ds += F.smooth_l1_loss(GAN_F0_fake, GAN_F0_fake2.detach())
     
     # cycle-consistency loss
-    s_org = nets.style_encoder(x_real, y_org)
-    x_rec = nets.generator(x_fake, s_org, masks=None, F0=GAN_F0_fake)
+    s_org = nets.audio_style_encoder(x_real, y_org)
+    x_rec = nets.audio_generator(x_fake, s_org, masks=None, F0=GAN_F0_fake)
     loss_cyc = torch.mean(torch.abs(x_rec - x_real))
     # F0 loss in cycle-consistency loss
     if args.lambda_f0 > 0:
@@ -144,7 +153,7 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
     
     # adversarial classifier loss
     if use_adv_cls:
-        out_de = nets.discriminator.classifier(x_fake)
+        out_de = nets.audio_discriminator.classifier(x_fake)
         loss_adv_cls = F.cross_entropy(out_de[y_org != y_trg], y_trg[y_org != y_trg])
     else:
         loss_adv_cls = torch.zeros(1).mean()

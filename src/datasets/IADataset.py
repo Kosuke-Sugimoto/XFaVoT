@@ -224,7 +224,7 @@ class Collater(object):
             ref_audio_label_id[bid] = torch.tensor(ralabel.id_idx).long()
             ref_audio_label_gender[bid] = torch.tensor(ralabel.gender).long()
 
-            img_tensor[bid, :, :] = img
+            img_tensor[bid, :, :, :] = img
             ref_img_tensor1[bid, :, :, :] = rimg1
             ref_img_tensor2[bid, :, :, :] = rimg2
 

@@ -1,8 +1,8 @@
 # ===== Dataset =====
 
 # [ Dataset Common ]
-batch_size: 8
-num_workers: 2
+batch_size: 2
+num_workers: 1
 shuffle: True
 
 # [ Image Dataset ]
@@ -47,26 +47,34 @@ ASR_path: "StarGANv2VC/Utils/ASR/epoch_00100.pth"
 
 # [ Image Model ]
 image_num_domains: 2
+hidden_dim: 512
 
 # ===== Training =====
 epochs: 151
 
-loss_params:
-  g_loss:
-    lambda_sty: 1.
-    lambda_cyc: 5.
-    lambda_ds: 1.
-    lambda_norm: 1.
-    lambda_asr: 10.
-    lambda_f0: 5.
-    lambda_f0_sty: 0.1
-    lambda_adv: 2.
-    lambda_adv_cls: 0.5
-    norm_bias: 0.5
-  d_loss:
-    lambda_reg: 1.
-    lambda_adv_cls: 0.1
-    lambda_con_reg: 10.
+# Audio
+# loss_params:
+g_loss:
+  lambda_sty: 1.
+  lambda_cyc: 5.
+  lambda_ds: 1.
+  lambda_norm: 1.
+  lambda_asr: 10.
+  lambda_f0: 5.
+  lambda_f0_sty: 0.1
+  lambda_adv: 2.
+  lambda_adv_cls: 0.5
+  norm_bias: 0.5
+d_loss:
+  lambda_reg: 1.
+  lambda_adv_cls: 0.1
+  lambda_con_reg: 10.
 
-  adv_cls_epoch: 50
-  con_reg_epoch: 30
+# Image
+lambda_image_ds: 1.
+lambda_image_cyc: 1.
+lambda_image_sty: 1.
+lambda_image_reg: 1.
+
+adv_cls_epoch: 50
+con_reg_epoch: 30
