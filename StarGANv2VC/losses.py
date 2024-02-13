@@ -58,6 +58,7 @@ def compute_d_loss(
             
         F0 = nets.f0_model.get_feature_GAN(x_real)
         x_fake = nets.audio_generator(x_real, s_trg, masks=None, F0=F0)
+    # out = nets.audio_discriminator(x_fake, y_trg)
     out = nets.audio_discriminator(x_fake, audio_id_label)
     loss_fake = adv_loss(out, 0)
     if use_con_reg:
@@ -139,7 +140,7 @@ def compute_g_loss(
     loss_f0 = f0_loss(F0_fake, F0_real)
     
     # style F0 loss (style initialization)
-    if x_refs is not None and args.lambda_f0_sty > 0 and not use_adv_cls:
+    if x_refs is not None and args.lambda_f0_sty > 0 and not use_adv_cls and not withImage:
         F0_sty, _, _ = nets.f0_model(x_ref)
         loss_f0_sty = F.l1_loss(compute_mean_f0(F0_fake), compute_mean_f0(F0_sty))
     else:

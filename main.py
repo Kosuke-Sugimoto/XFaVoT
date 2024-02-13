@@ -1,12 +1,14 @@
 import click
 import torch
 import yaml
+import os.path as osp
 from munch import Munch
 from omegaconf import OmegaConf
 
 from StarGANv2VC.Utils.ASR.models import ASRCNN
 from StarGANv2VC.Utils.JDC.model import JDCNet
 from src.trainers.trainer import Trainer
+from src.utils.seed_everything import seed_everything
 from src.models.build_models import build_model
 from src.optimizers.build_optimizers import build_optimizer
 from src.datasets.IADataset import build_train_dataloader, build_val_dataloader
@@ -15,6 +17,8 @@ from src.datasets.IADataset import build_train_dataloader, build_val_dataloader
 @click.option("--config_path", type=str, default="Configs/train_config.yml")
 def main(config_path):
     config = OmegaConf.load(config_path)
+
+    seed_everything(config.seed)
 
     batch_size = config.batch_size
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,6 +30,10 @@ def main(config_path):
     prob = config.prob
     max_mel_length = config.max_mel_length
     latent_dim = config.latent_dim
+    sample_freq = config.sample_freq
+    save_freq = config.save_freq
+    wandb_save_freq = config.wandb_save_freq
+    log_dir = config.log_dir
 
     train_dataloader = build_train_dataloader(
         vctk_data_dir=vctk_data_dir,
@@ -83,14 +91,29 @@ def main(config_path):
     trainer = Trainer(
         args = config,
         model = model,
-        epochs = epochs,
         optimizer = optimizer,
         device = device,
         train_dataloader = train_dataloader,
         val_dataloader = val_dataloader
     )
 
-    trainer._train_epoch()
+    # log_dir update
+    log_dir += f"/{trainer.wandb_run_name}"
+
+    for _ in range(1, epochs+1):
+        now_epoch = trainer.epochs
+        
+        trainer._train_epoch()
+        trainer._val_epoch(audio_log=((now_epoch % sample_freq) == 0))
+
+        if (now_epoch % save_freq) == 0:
+            trainer.save_checkpoint(
+                osp.join(log_dir, 'epoch_%05d.pth' % now_epoch),
+                add_artifact=((now_epoch % wandb_save_freq) == 0)
+            )
+
+    trainer.log_artifact()
+
     
 if __name__=="__main__":
     main()

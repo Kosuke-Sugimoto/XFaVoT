@@ -198,13 +198,16 @@ class Solver(nn.Module):
         calculate_metrics(nets_ema, args, step=resume_iter, mode='reference')
 
 
-def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None, withAudio=False):
+def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, masks=None, withAudio=False, use_r1_reg=True):
     assert (z_trg is None) != (x_ref is None)
     # with real images
     x_real.requires_grad_()
     out = nets.image_discriminator(x_real, y_org)
     loss_real = adv_loss(out, 1)
-    loss_reg = r1_reg(out, x_real)
+    if use_r1_reg:
+        loss_reg = r1_reg(out, x_real)
+    else:
+        loss_reg = torch.FloatTensor([0]).to(x_real.device)
 
     # with fake images
     with torch.no_grad():

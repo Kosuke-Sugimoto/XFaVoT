@@ -27,10 +27,10 @@ services:
         source: /mnt/hdd1/Datasets/Raw/
         target: /work/Datasets/
       - type: bind
-        source: /mnt/hdd1/Checkpoints/
+        source: /mnt/hdd1/Checkpoints/m1_research/XFaVoT
         target: /work/Checkpoints/
       - type: bind
-        source: /mnt/hdd2/Results/
+        source: /mnt/hdd2/Results/m1_research/XFaVoT
         target: /work/Results/
     working_dir: /work
     # サービスへのgpuの割り当て

@@ -320,7 +320,7 @@ def build_val_dataloader(
         num_workers=num_workers,
         collate_fn=collate_fn,
         # pin_memory=True,
-        drop_last=False
+        drop_last=True
     )
 
 if __name__=="__main__":

@@ -8,8 +8,11 @@ docker compose exec vc bash
 StarGANv2の関数を呼び出す際に`cv2`、`skimage`の呼び出しが必要となるため、`pip`にてダウンロード(poetryで解決できないため)
 ```bash
 poetry install --no-root
-pip install ffmpeg
 ```
+
+## 注意
+`StarGANv2-VC/Utils/ASR/epoch_00100.pth` が 87.44MB であり、GitHub の 推奨 size が 50.00MB のため少々オーバーしている  
+別環境で構築した際、これが開けない場合が考えられるので再ダウンロードも考えた方が良い
 
 ## Pythonにおけるprint関数のカーソル移動について
 一般にANSIエスケープコードとして知られている模様  
@@ -27,7 +30,3 @@ finallyはtryブロック内でエラーが発生しようとしなかろうと�
 では、try内でreturnに到達したらどうなるのか？  
 　⇒return直前にfinallyの処理が割り込まれる  
 今回はそれを利用してreturnで抜ける直前にスレッドへとイベントをセットしている([このファイル](src/utils/print_loading.py)のl.33～l.36)
-
-## 注意
-`StarGANv2-VC/Utils/ASR/epoch_00100.pth` が 87.44MB であり、GitHub の 推奨 size が 50.00MB のため少々オーバーしている  
-別環境で構築した際、これが開けない場合が考えられるので再ダウンロードも考えた方が良い

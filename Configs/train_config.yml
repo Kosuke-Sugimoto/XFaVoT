@@ -1,8 +1,8 @@
 # ===== Dataset =====
 
 # [ Dataset Common ]
-batch_size: 2
-num_workers: 1
+batch_size: 2 # 4はアウト
+num_workers: 4
 shuffle: True
 
 # [ Image Dataset ]
@@ -25,12 +25,12 @@ max_mel_length: 192
 # ===== Model =====
 
 # [ Common ]
-lr: 0.0004
+lr: 0.0001
 pct_start: 0.0
-f_lr: 0.000006
+f_lr: 0.000001
 beta1: 0.0
 beta2: 0.99
-weight_decay: 0.0004
+weight_decay: 0.0001
 
 # [ Audio Model ]
 dim_in: 64
@@ -50,31 +50,38 @@ image_num_domains: 2
 hidden_dim: 512
 
 # ===== Training =====
-epochs: 151
+project_name: XFaVoT
+seed: 777
+epochs: 151 #151
+sample_freq: 10 # frequency of creating audio sample
+save_freq: 10
+wandb_save_freq: 75
+log_dir: Checkpoints/
+result_dir: Results/
 
 # Audio
 # loss_params:
 g_loss:
   lambda_sty: 1.
-  lambda_cyc: 5.
-  lambda_ds: 1.
+  lambda_cyc: 1.
+  lambda_ds: 2.
   lambda_norm: 1.
-  lambda_asr: 10.
+  lambda_asr: 20.
   lambda_f0: 5.
-  lambda_f0_sty: 0.1
-  lambda_adv: 2.
-  lambda_adv_cls: 0.5
-  norm_bias: 0.5
+  lambda_f0_sty: 0
+  lambda_adv: 1.
+  lambda_adv_cls: 0.05
+  norm_bias: 0
 d_loss:
-  lambda_reg: 1.
-  lambda_adv_cls: 0.1
-  lambda_con_reg: 10.
+  lambda_reg: 0.
+  lambda_adv_cls: 0.05
+  lambda_con_reg: 0.
 
 # Image
-lambda_image_ds: 1.
+lambda_image_ds: 2.
 lambda_image_cyc: 1.
 lambda_image_sty: 1.
-lambda_image_reg: 1.
+lambda_image_reg: 0.
 
 adv_cls_epoch: 50
 con_reg_epoch: 30

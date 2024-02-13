@@ -72,7 +72,7 @@ def build_optimizer(parameters_dict, scheduler_params_dict):
     """
     
     optim = dict([(key, Adam(params, lr=1e-4, weight_decay=1e-4, betas=(0.0, 0.99), eps=1e-9)
-                   if "image" in key else AdamW(params, lr=1e-4, weight_decay=1e-4, betas=(0.0, 0.99), eps=1e-9))
+                   if "image" in key else return_audio_or_mapping_optimizer(key, params))
                    for key, params in parameters_dict.items()])
 
     schedulers = dict([(key, define_scheduler(opt, scheduler_params_dict[key])) \
@@ -81,3 +81,10 @@ def build_optimizer(parameters_dict, scheduler_params_dict):
     multi_optim = MultiOptimizer(optim, schedulers)
 
     return multi_optim
+
+
+def return_audio_or_mapping_optimizer(key, params):
+    if "audio" in key:
+        return AdamW(params, lr=1e-4, weight_decay=1e-4, betas=(0.0, 0.99), eps=1e-9)
+    else:
+        return AdamW(params, lr=1e-6, weight_decay=1e-4, betas=(0.0, 0.99), eps=1e-9)
