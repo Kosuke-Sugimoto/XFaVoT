@@ -126,6 +126,7 @@ class IADataset(Dataset):
                                     self.vctk_config_obj.sampling_rate, self.vctk_config_obj.hop_size, self.vctk_config_obj.win_size,
                                     self.vctk_config_obj.fmin, self.vctk_config_obj.fmax, center=False)
         mel_data = mel_data.squeeze() # (1, num_mels, times) -> (num_mels, times) ?
+        mel_data = (mel_data + 4) / 4
 
         mel_length = mel_data.size(1)
         if mel_length > self.vctk_config_obj.max_mel_length:

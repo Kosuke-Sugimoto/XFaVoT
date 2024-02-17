@@ -102,7 +102,7 @@ def main(config_path):
 
     for _ in range(1, epochs+1):
         now_epoch = trainer.epochs
-        
+
         trainer._train_epoch()
         trainer._val_epoch(audio_log=((now_epoch % sample_freq) == 0))
 

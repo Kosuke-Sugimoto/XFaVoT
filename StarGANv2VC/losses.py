@@ -2,6 +2,7 @@
 
 import os
 import torch
+import random
 
 from torch import nn
 from munch import Munch
@@ -15,8 +16,9 @@ def compute_d_loss(
     args,
     x_real,
     y_org,
-    y_trg, # this is only audio gender
     audio_id_label,
+    y_trg, # this is only audio gender
+    ref_audio_id_label,
     z_trg=None,
     x_ref=None,
     use_r1_reg=True,
@@ -29,7 +31,8 @@ def compute_d_loss(
     assert (z_trg is None) != (x_ref is None)
     # with real audios
     x_real.requires_grad_()
-    out = nets.audio_discriminator(x_real, y_org)
+    label = random.choice([y_org, audio_id_label])
+    out = nets.audio_discriminator(x_real, label)
     loss_real = adv_loss(out, 1)
     
     # R1 regularizaition (https://arxiv.org/abs/1801.04406v4)
@@ -48,8 +51,8 @@ def compute_d_loss(
     # with fake audios
     with torch.no_grad():
         if z_trg is not None:
-            # s_trg = nets.mapping_network(z_trg, y_trg)
-            s_trg = nets.mapping_network(z_trg, audio_id_label)
+            label = random.choice([y_trg, ref_audio_id_label])
+            s_trg = nets.mapping_network(z_trg, label)
         else:  # x_ref is not None
             if withImage:
                 s_trg = nets.image_style_encoder(x_ref, y_trg)
@@ -58,8 +61,8 @@ def compute_d_loss(
             
         F0 = nets.f0_model.get_feature_GAN(x_real)
         x_fake = nets.audio_generator(x_real, s_trg, masks=None, F0=F0)
-    # out = nets.audio_discriminator(x_fake, y_trg)
-    out = nets.audio_discriminator(x_fake, audio_id_label)
+    label = random.choice([y_trg, ref_audio_id_label])
+    out = nets.audio_discriminator(x_fake, label)
     loss_fake = adv_loss(out, 0)
     if use_con_reg:
         out_aug = nets.audio_discriminator(t(x_fake).detach(), y_trg)
@@ -91,8 +94,9 @@ def compute_g_loss(
     args,
     x_real,
     y_org,
-    y_trg, # this is audio gender label only
     audio_id_label,
+    y_trg, # this is audio gender label only
+    ref_audio_id_label,
     z_trgs=None,
     x_refs=None,
     use_adv_cls=False,
@@ -108,8 +112,8 @@ def compute_g_loss(
         
     # compute style vectors
     if z_trgs is not None:
-        # s_trg = nets.mapping_network(z_trg, y_trg)
-        s_trg = nets.mapping_network(z_trg, audio_id_label)
+        label = random.choice([y_trg, ref_audio_id_label])
+        s_trg = nets.mapping_network(z_trg, label)
     else:
         if withImage:
             s_trg = nets.image_style_encoder(x_ref, y_trg)
@@ -123,8 +127,8 @@ def compute_g_loss(
     
     # adversarial loss
     x_fake = nets.audio_generator(x_real, s_trg, masks=None, F0=GAN_F0_real)
-    # out = nets.audio_discriminator(x_fake, y_trg) 
-    out = nets.audio_discriminator(x_fake, audio_id_label) 
+    label = random.choice([y_trg, ref_audio_id_label])
+    out = nets.audio_discriminator(x_fake, label)
     loss_adv = adv_loss(out, 1)
     
     # compute ASR/F0 features (fake)
@@ -155,8 +159,8 @@ def compute_g_loss(
     
     # diversity sensitive loss
     if z_trgs is not None:
-        # s_trg2 = nets.mapping_network(z_trg2, y_trg)
-        s_trg2 = nets.mapping_network(z_trg2, audio_id_label)
+        s_trg2 = nets.mapping_network(z_trg2, y_trg)
+        # s_trg2 = nets.mapping_network(z_trg2, audio_id_label)
     else:
         if withImage:
             s_trg2 = nets.image_style_encoder(x_ref2, y_trg)

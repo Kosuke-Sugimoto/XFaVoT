@@ -88,6 +88,13 @@ class Trainer(object):
             converted_by_mapping = self.model.audio_generator(mel, style_mapping, masks=None, F0=GAN_F0)
             converted_by_audio = self.model.audio_generator(mel, style_audio, masks=None, F0=GAN_F0)
             converted_by_image = self.model.audio_generator(mel, style_img, masks=None, F0=GAN_F0)
+
+            # 正規化の影響を戻す
+            # params: mean = -4, std = 4
+            mel = mel*4 - 4
+            converted_by_mapping = converted_by_mapping*4 - 4
+            converted_by_audio = converted_by_audio*4 - 4
+            converted_by_image = converted_by_image*4 - 4
             
             out = self.vocoder(mel.squeeze(dim=1))
             out_by_mapping = self.vocoder(converted_by_mapping.squeeze(dim=1))
@@ -264,7 +271,7 @@ class Trainer(object):
             #  ===== audio-guided voice conversion =====
             # discriminator ( mapping )
             d_loss, d_losses_mapping_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
             )
             self.optimizer.zero_grad()
             d_loss.backward()
@@ -272,7 +279,7 @@ class Trainer(object):
 
             # discriminator ( style )
             d_loss, d_losses_ref_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
             )
             self.optimizer.zero_grad()
             d_loss.backward()
@@ -280,7 +287,7 @@ class Trainer(object):
             
             # generator     ( mapping )
             g_loss, g_losses_mapping_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
             )
             self.optimizer.zero_grad()
             g_loss.backward()
@@ -290,7 +297,7 @@ class Trainer(object):
             
             # generator     ( style )
             g_loss, g_losses_ref_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
             )
             self.optimizer.zero_grad()
             g_loss.backward()
@@ -298,76 +305,76 @@ class Trainer(object):
 
             # ===== audio-guided image translation =====
             # discriminator ( mapping )
-            # d_loss, d_losses_mapping_ait = compute_image_d_loss(
-            #     self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code
-            # )
-            # self.optimizer.zero_grad()
-            # d_loss.backward()
-            # self.optimizer.step("image_discriminator")
+            d_loss, d_losses_mapping_ait = compute_image_d_loss(
+                self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code
+            )
+            self.optimizer.zero_grad()
+            d_loss.backward()
+            self.optimizer.step("image_discriminator")
 
             # discriminator ( style )
-            # d_loss, d_losses_ref_ait = compute_image_d_loss(
-            #     self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True
-            # )
-            # self.optimizer.zero_grad()
-            # d_loss.backward()
-            # self.optimizer.step("image_discriminator")
+            d_loss, d_losses_ref_ait = compute_image_d_loss(
+                self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True
+            )
+            self.optimizer.zero_grad()
+            d_loss.backward()
+            self.optimizer.step("image_discriminator")
 
             # generator     ( mapping )
-            # g_loss, g_losses_mapping_ait = compute_image_g_loss(
-            #     self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
-            # )
-            # self.optimizer.zero_grad()
-            # g_loss.backward()
+            g_loss, g_losses_mapping_ait = compute_image_g_loss(
+                self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
+            )
+            self.optimizer.zero_grad()
+            g_loss.backward()
             # style encoderはmapping networkにそって学習
             # mapping networkに合わせるような感じになる
             # ↑ 例えば style reconstruction とかね
-            # self.optimizer.step("image_generator")
-            # self.optimizer.step("mapping_network")
-            # self.optimizer.step("image_style_encoder")
+            self.optimizer.step("image_generator")
+            self.optimizer.step("mapping_network")
+            self.optimizer.step("image_style_encoder")
 
             # generator     ( style )
-            # g_loss, g_losses_ref_ait = compute_image_g_loss(
-            #     self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
-            # )
-            # self.optimizer.zero_grad()
-            # g_loss.backward()
-            # self.optimizer.step("image_generator")
+            g_loss, g_losses_ref_ait = compute_image_g_loss(
+                self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
+            )
+            self.optimizer.zero_grad()
+            g_loss.backward()
+            self.optimizer.step("image_generator")
 
             # ===== image-guided voice conversion =====
             # discriminator ( mapping )
-            # d_loss, d_losses_mapping_ivc = compute_audio_d_loss(
-            #     self.model, self.args.d_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
-            # )
-            # self.optimizer.zero_grad()
-            # d_loss.backward()
-            # self.optimizer.step("audio_discriminator")
+            d_loss, d_losses_mapping_ivc = compute_audio_d_loss(
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
+            )
+            self.optimizer.zero_grad()
+            d_loss.backward()
+            self.optimizer.step("audio_discriminator")
 
             # discriminator ( style )
-            # d_loss, d_losses_ref_ivc = compute_audio_d_loss(
-            #     self.model, self.args.d_loss, mel, audio_gender, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg, withImage=True
-            # )
-            # self.optimizer.zero_grad()
-            # d_loss.backward()
-            # self.optimizer.step("audio_discriminator")
+            d_loss, d_losses_ref_ivc = compute_audio_d_loss(
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg, withImage=True
+            )
+            self.optimizer.zero_grad()
+            d_loss.backward()
+            self.optimizer.step("audio_discriminator")
 
             # generator     ( mapping )
-            # g_loss, g_losses_mapping_ivc = compute_audio_g_loss(
-            #     self.model, self.args.g_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
-            # )
-            # self.optimizer.zero_grad()
-            # g_loss.backward()
-            # self.optimizer.step("audio_generator")
-            # self.optimizer.step("mapping_network")
-            # self.optimizer.step("audio_style_encoder")
+            g_loss, g_losses_mapping_ivc = compute_audio_g_loss(
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+            )
+            self.optimizer.zero_grad()
+            g_loss.backward()
+            self.optimizer.step("audio_generator")
+            self.optimizer.step("mapping_network")
+            self.optimizer.step("audio_style_encoder")
 
             # generator     ( style )
-            # g_loss, g_losses_ref_ivc = compute_audio_g_loss(
-            #     self.model, self.args.g_loss, mel, audio_gender, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
-            # )
-            # self.optimizer.zero_grad()
-            # g_loss.backward()
-            # self.optimizer.step("audio_generator")
+            g_loss, g_losses_ref_ivc = compute_audio_g_loss(
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
+            )
+            self.optimizer.zero_grad()
+            g_loss.backward()
+            self.optimizer.step("audio_generator")
 
             self.optimizer.scheduler()
 
@@ -377,34 +384,34 @@ class Trainer(object):
                 "train/by_task/iit/d_style": dict(d_losses_ref_iit),
                 "train/by_task/iit/g_mapping": dict(g_losses_mapping_iit),
                 "train/by_task/iit/g_style": dict(g_losses_ref_iit),
-                # "train/by_task/ait/d_mapping": dict(d_losses_mapping_ait),
-                # "train/by_task/ait/d_style": dict(d_losses_ref_ait),
-                # "train/by_task/ait/g_mapping": dict(g_losses_mapping_ait),
-                # "train/by_task/ait/g_style": dict(g_losses_ref_ait),
+                "train/by_task/ait/d_mapping": dict(d_losses_mapping_ait),
+                "train/by_task/ait/d_style": dict(d_losses_ref_ait),
+                "train/by_task/ait/g_mapping": dict(g_losses_mapping_ait),
+                "train/by_task/ait/g_style": dict(g_losses_ref_ait),
                 "train/by_task/avc/d_mapping": dict(d_losses_mapping_avc),
                 "train/by_task/avc/d_style": dict(d_losses_ref_avc),
                 "train/by_task/avc/g_mapping": dict(g_losses_mapping_avc),
                 "train/by_task/avc/g_style": dict(g_losses_ref_avc),
-                # "train/by_task/ivc/d_mapping": dict(d_losses_mapping_ivc),
-                # "train/by_task/ivc/d_style": dict(d_losses_ref_ivc),
-                # "train/by_task/ivc/g_mapping": dict(g_losses_mapping_ivc),
-                # "train/by_task/ivc/g_style": dict(g_losses_ref_ivc),
+                "train/by_task/ivc/d_mapping": dict(d_losses_mapping_ivc),
+                "train/by_task/ivc/d_style": dict(d_losses_ref_ivc),
+                "train/by_task/ivc/g_mapping": dict(g_losses_mapping_ivc),
+                "train/by_task/ivc/g_style": dict(g_losses_ref_ivc),
                 "train/by_loss/d_losses/mapping/iit": dict(d_losses_mapping_iit),
-                # "train/by_loss/d_losses/mapping/ait": dict(d_losses_mapping_ait),
+                "train/by_loss/d_losses/mapping/ait": dict(d_losses_mapping_ait),
                 "train/by_loss/d_losses/mapping/avc": dict(d_losses_mapping_avc),
-                # "train/by_loss/d_losses/mapping/ivc": dict(d_losses_mapping_ivc),
+                "train/by_loss/d_losses/mapping/ivc": dict(d_losses_mapping_ivc),
                 "train/by_loss/d_losses/style/iit": dict(d_losses_ref_iit),
-                # "train/by_loss/d_losses/style/ait": dict(d_losses_ref_ait),
+                "train/by_loss/d_losses/style/ait": dict(d_losses_ref_ait),
                 "train/by_loss/d_losses/style/avc": dict(d_losses_ref_avc),
-                # "train/by_loss/d_losses/style/ivc": dict(d_losses_ref_ivc),
+                "train/by_loss/d_losses/style/ivc": dict(d_losses_ref_ivc),
                 "train/by_loss/g_losses/mapping/iit": dict(g_losses_mapping_iit),
-                # "train/by_loss/g_losses/mapping/ait": dict(g_losses_mapping_ait),
+                "train/by_loss/g_losses/mapping/ait": dict(g_losses_mapping_ait),
                 "train/by_loss/g_losses/mapping/avc": dict(g_losses_mapping_avc),
-                # "train/by_loss/g_losses/mapping/ivc": dict(g_losses_mapping_ivc),
+                "train/by_loss/g_losses/mapping/ivc": dict(g_losses_mapping_ivc),
                 "train/by_loss/g_losses/style/iit": dict(g_losses_ref_iit),
-                # "train/by_loss/g_losses/style/ait": dict(g_losses_ref_ait),
+                "train/by_loss/g_losses/style/ait": dict(g_losses_ref_ait),
                 "train/by_loss/g_losses/style/avc": dict(g_losses_ref_avc),
-                # "train/by_loss/g_losses/style/ivc": dict(g_losses_ref_ivc)
+                "train/by_loss/g_losses/style/ivc": dict(g_losses_ref_ivc)
             })
 
     @torch.no_grad()
@@ -424,88 +431,88 @@ class Trainer(object):
 
             # ===== image-guided image translation =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_iit = compute_image_d_loss(
+            _, d_losses_mapping_iit = compute_image_d_loss(
                 self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code, use_r1_reg=False
             )
             
             # discriminator ( style )
-            d_loss, d_losses_ref_iit = compute_image_d_loss(
+            _, d_losses_ref_iit = compute_image_d_loss(
                 self.model, self.args, img, img_gender, ref_img_gender, x_ref=ref_img1, use_r1_reg=False
             )
             
             # generator     ( mapping )
-            g_loss, g_losses_mapping_iit = compute_image_g_loss(
+            _, g_losses_mapping_iit = compute_image_g_loss(
                 self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
             )
             
             # generator     ( style )
-            g_loss, g_losses_ref_iit = compute_image_g_loss(
+            _, g_losses_ref_iit = compute_image_g_loss(
                 self.model, self.args, img, img_gender, ref_img_gender, x_refs=[ref_img1, ref_img2]
             )
             
             #  ===== audio-guided voice conversion =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
+            _, d_losses_mapping_avc = compute_audio_d_loss(
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
             )
             
             # discriminator ( style )
-            d_loss, d_losses_ref_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_r1_reg=False
+            _, d_losses_ref_avc = compute_audio_d_loss(
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_r1_reg=False
             )
             
             # generator     ( mapping )
-            g_loss, g_losses_mapping_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+            _, g_losses_mapping_avc = compute_audio_g_loss(
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
             )
             
             # generator     ( style )
-            g_loss, g_losses_ref_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
+            _, g_losses_ref_avc = compute_audio_g_loss(
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
             )
             
             # ===== audio-guided image translation =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_ait = compute_image_d_loss(
+            _, d_losses_mapping_ait = compute_image_d_loss(
                 self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code, use_r1_reg=False
             )
             
             # discriminator ( style )
-            d_loss, d_losses_ref_ait = compute_image_d_loss(
+            _, d_losses_ref_ait = compute_image_d_loss(
                 self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True, use_r1_reg=False
             )
             
             # generator     ( mapping )
-            g_loss, g_losses_mapping_ait = compute_image_g_loss(
+            _, g_losses_mapping_ait = compute_image_g_loss(
                 self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
             )
             
             # generator     ( style )
-            g_loss, g_losses_ref_ait = compute_image_g_loss(
+            _, g_losses_ref_ait = compute_image_g_loss(
                 self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
             )
             
             # ===== image-guided voice conversion =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_ivc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
+            _, d_losses_mapping_ivc = compute_audio_d_loss(
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
             )
             
             # discriminator ( style )
-            d_loss, d_losses_ref_ivc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_r1_reg=False, withImage=True
+            _, d_losses_ref_ivc = compute_audio_d_loss(
+                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_r1_reg=False, withImage=True
             )
             
             # generator     ( mapping )
-            g_loss, g_losses_mapping_ivc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+            _, g_losses_mapping_ivc = compute_audio_g_loss(
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
             )
             
             # generator     ( style )
             # ここのloss_f0のcompute_mean_f0がバッチサイズ1に対応していない
             # そのため、dataloaderでdrop_lastしていないと余った分が1個だった場合エラーが出る
-            g_loss, g_losses_ref_ivc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
+            _, g_losses_ref_ivc = compute_audio_g_loss(
+                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
             )
             
             wandb.log({

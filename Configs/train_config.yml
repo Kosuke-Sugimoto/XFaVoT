@@ -52,7 +52,7 @@ hidden_dim: 512
 # ===== Training =====
 project_name: XFaVoT
 seed: 777
-epochs: 151 #151
+epochs: 151
 sample_freq: 10 # frequency of creating audio sample
 save_freq: 10
 wandb_save_freq: 75
@@ -68,14 +68,14 @@ g_loss:
   lambda_norm: 1.
   lambda_asr: 20.
   lambda_f0: 5.
-  lambda_f0_sty: 0
+  lambda_f0_sty: 0.1
   lambda_adv: 1.
   lambda_adv_cls: 0.05
-  norm_bias: 0
+  norm_bias: 0.1
 d_loss:
-  lambda_reg: 0.
+  lambda_reg: 0.5
   lambda_adv_cls: 0.05
-  lambda_con_reg: 0.
+  lambda_con_reg: 2.5
 
 # Image
 lambda_image_ds: 2.
