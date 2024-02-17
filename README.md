@@ -30,3 +30,6 @@ finallyはtryブロック内でエラーが発生しようとしなかろうと�
 では、try内でreturnに到達したらどうなるのか？  
 　⇒return直前にfinallyの処理が割り込まれる  
 今回はそれを利用してreturnで抜ける直前にスレッドへとイベントをセットしている([このファイル](src/utils/print_loading.py)のl.33～l.36)
+
+# 私的メモ
+wandbのAPI Keyは/root/.netsrcに格納？
