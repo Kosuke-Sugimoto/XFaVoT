@@ -1,5 +1,7 @@
 ## XFaVoT
-This repository is Unofficial implementation of [This Paper](https://arxiv.org/abs/2302.13838)
+This repository contains an unofficial implementation of the research presented in [This Paper](https://arxiv.org/abs/2302.13838).  
+It has been developed for my personal research purposes.  
+Therefore, it may contain discrepancies or inaccuracies in comparison to the official publication.
 
 ## Reference
 - [BigVGAN](https://github.com/NVIDIA/BigVGAN)
