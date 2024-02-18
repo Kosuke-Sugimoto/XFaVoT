@@ -3,7 +3,7 @@ This repository contains an unofficial implementation of the research presented 
 It has been developed for my personal research purposes.  
 Therefore, it may contain discrepancies or inaccuracies in comparison to the official publication.
 
-## Reference
+## References
 - [BigVGAN](https://github.com/NVIDIA/BigVGAN)
 - [StarGANv2](https://github.com/clovaai/stargan-v2)
 - [StarGANv2-VC](https://github.com/yl4579/StarGANv2-VC)
