@@ -1,3 +1,11 @@
+## XFaVoT
+This repository is Unofficial implementation of [This Paper](https://arxiv.org/abs/2302.13838)
+
+## Reference
+- [BigVGAN](https://github.com/NVIDIA/BigVGAN)
+- [StarGANv2](https://github.com/clovaai/stargan-v2)
+- [StarGANv2-VC](https://github.com/yl4579/StarGANv2-VC)
+
 ## 利用方法
 - Local環境内
 ```bash
@@ -31,5 +39,5 @@ finallyはtryブロック内でエラーが発生しようとしなかろうと�
 　⇒return直前にfinallyの処理が割り込まれる  
 今回はそれを利用してreturnで抜ける直前にスレッドへとイベントをセットしている([このファイル](src/utils/print_loading.py)のl.33～l.36)
 
-# 私的メモ
+## 私的メモ
 wandbのAPI Keyは/root/.netsrcに格納？
