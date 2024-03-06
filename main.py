@@ -4,6 +4,7 @@ import yaml
 import os.path as osp
 from munch import Munch
 from omegaconf import OmegaConf
+from torch.cuda.amp import GradScaler
 
 from StarGANv2VC.Utils.ASR.models import ASRCNN
 from StarGANv2VC.Utils.JDC.model import JDCNet
@@ -87,11 +88,14 @@ def main(config_path):
     scheduler_params_dict['mapping_network']['max_lr'] = 2e-6
     optimizer = build_optimizer({key: model[key].parameters() for key in model},
                                       scheduler_params_dict=scheduler_params_dict)
+
+    scaler = GradScaler(enabled=config.use_amp)
     
     trainer = Trainer(
         args = config,
         model = model,
         optimizer = optimizer,
+        scaler = scaler,
         device = device,
         train_dataloader = train_dataloader,
         val_dataloader = val_dataloader

@@ -1,7 +1,7 @@
 # ===== Dataset =====
 
 # [ Dataset Common ]
-batch_size: 2 # 4はアウト
+batch_size: 12
 num_workers: 4
 shuffle: True
 
@@ -53,11 +53,12 @@ hidden_dim: 512
 project_name: XFaVoT
 seed: 777
 epochs: 151
-sample_freq: 10 # frequency of creating audio sample
-save_freq: 10
+sample_freq: 15 # frequency of creating audio sample
+save_freq: 15
 wandb_save_freq: 75
 log_dir: Checkpoints/
 result_dir: Results/
+use_amp: True
 
 # Audio
 # loss_params:

@@ -8,6 +8,7 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 from scipy.io.wavfile import write
+from torch.nn import DataParallel
 from BigVGAN.env import AttrDict
 from BigVGAN.models import BigVGAN as Vocoder
 from BigVGAN.inference_e2e import scan_checkpoint, load_checkpoint
@@ -23,6 +24,7 @@ class Trainer(object):
         args,
         model,
         optimizer,
+        scaler,
         train_dataloader,
         val_dataloader,
         initial_steps=0,
@@ -32,6 +34,7 @@ class Trainer(object):
         self.model = model
         self.args = args
         self.optimizer = optimizer
+        self.scaler = scaler
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.steps = initial_steps
@@ -49,6 +52,7 @@ class Trainer(object):
         self.vocoder.load_state_dict(state_dict_g["generator"])
         self.vocoder.eval()
         self.vocoder.remove_weight_norm()
+        self.vocoder = DataParallel(self.vocoder, device_ids=[0, 1])
 
         wandb.init(
             project = self.args.project_name,
@@ -235,146 +239,162 @@ class Trainer(object):
 
             # ===== image-guided image translation =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_iit = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_mapping_iit = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("image_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("image_discriminator", self.scaler)
 
             # discriminator ( style )
-            d_loss, d_losses_ref_iit = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_img_gender, x_ref=ref_img1
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_ref_iit = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_img_gender, x_ref=ref_img1
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("image_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("image_discriminator", self.scaler)
 
             # generator     ( mapping )
-            g_loss, g_losses_mapping_iit = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_mapping_iit = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("image_generator")
-            self.optimizer.step("mapping_network")
-            self.optimizer.step("image_style_encoder")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("image_generator", self.scaler)
+            self.optimizer.step("mapping_network", self.scaler)
+            self.optimizer.step("image_style_encoder", self.scaler)
 
             # generator     ( style )
-            g_loss, g_losses_ref_iit = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_img_gender, x_refs=[ref_img1, ref_img2]
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_ref_iit = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_img_gender, x_refs=[ref_img1, ref_img2]
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("image_generator")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("image_generator", self.scaler)
 
             #  ===== audio-guided voice conversion =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_mapping_avc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("audio_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("audio_discriminator", self.scaler)
 
             # discriminator ( style )
-            d_loss, d_losses_ref_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_ref_avc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("audio_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("audio_discriminator", self.scaler)
             
             # generator     ( mapping )
-            g_loss, g_losses_mapping_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_mapping_avc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("audio_generator")
-            self.optimizer.step("mapping_network")
-            self.optimizer.step("audio_style_encoder")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("audio_generator", self.scaler)
+            self.optimizer.step("mapping_network", self.scaler)
+            self.optimizer.step("audio_style_encoder", self.scaler)
             
             # generator     ( style )
-            g_loss, g_losses_ref_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_ref_avc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("audio_generator")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("audio_generator", self.scaler)
 
             # ===== audio-guided image translation =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_ait = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_mapping_ait = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("image_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("image_discriminator", self.scaler)
 
             # discriminator ( style )
-            d_loss, d_losses_ref_ait = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_ref_ait = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("image_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("image_discriminator", self.scaler)
 
             # generator     ( mapping )
-            g_loss, g_losses_mapping_ait = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_mapping_ait = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
+            self.scaler.scale(g_loss).backward()
             # style encoderはmapping networkにそって学習
             # mapping networkに合わせるような感じになる
             # ↑ 例えば style reconstruction とかね
-            self.optimizer.step("image_generator")
-            self.optimizer.step("mapping_network")
-            self.optimizer.step("image_style_encoder")
+            self.optimizer.step("image_generator", self.scaler)
+            self.optimizer.step("mapping_network", self.scaler)
+            self.optimizer.step("image_style_encoder", self.scaler)
 
             # generator     ( style )
-            g_loss, g_losses_ref_ait = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_ref_ait = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("image_generator")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("image_generator", self.scaler)
 
             # ===== image-guided voice conversion =====
             # discriminator ( mapping )
-            d_loss, d_losses_mapping_ivc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_mapping_ivc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("audio_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("audio_discriminator", self.scaler)
 
             # discriminator ( style )
-            d_loss, d_losses_ref_ivc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg, withImage=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                d_loss, d_losses_ref_ivc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_con_reg=use_con_reg, withImage=True
+                )
             self.optimizer.zero_grad()
-            d_loss.backward()
-            self.optimizer.step("audio_discriminator")
+            self.scaler.scale(d_loss).backward()
+            self.optimizer.step("audio_discriminator", self.scaler)
 
             # generator     ( mapping )
-            g_loss, g_losses_mapping_ivc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_mapping_ivc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("audio_generator")
-            self.optimizer.step("mapping_network")
-            self.optimizer.step("audio_style_encoder")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("audio_generator", self.scaler)
+            self.optimizer.step("mapping_network", self.scaler)
+            self.optimizer.step("audio_style_encoder", self.scaler)
 
             # generator     ( style )
-            g_loss, g_losses_ref_ivc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                g_loss, g_losses_ref_ivc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
+                )
             self.optimizer.zero_grad()
-            g_loss.backward()
-            self.optimizer.step("audio_generator")
+            self.scaler.scale(g_loss).backward()
+            self.optimizer.step("audio_generator", self.scaler)
 
             self.optimizer.scheduler()
 
@@ -431,89 +451,105 @@ class Trainer(object):
 
             # ===== image-guided image translation =====
             # discriminator ( mapping )
-            _, d_losses_mapping_iit = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_mapping_iit = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code, use_r1_reg=False
+                )
             
             # discriminator ( style )
-            _, d_losses_ref_iit = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_img_gender, x_ref=ref_img1, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_ref_iit = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_img_gender, x_ref=ref_img1, use_r1_reg=False
+                )
             
             # generator     ( mapping )
-            _, g_losses_mapping_iit = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_mapping_iit = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
+                )
             
             # generator     ( style )
-            _, g_losses_ref_iit = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_img_gender, x_refs=[ref_img1, ref_img2]
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_ref_iit = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_img_gender, x_refs=[ref_img1, ref_img2]
+                )
             
             #  ===== audio-guided voice conversion =====
             # discriminator ( mapping )
-            _, d_losses_mapping_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_mapping_avc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
+                )
             
             # discriminator ( style )
-            _, d_losses_ref_avc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_ref_avc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_ref=ref_mel1, use_adv_cls=use_adv_cls, use_r1_reg=False
+                )
             
             # generator     ( mapping )
-            _, g_losses_mapping_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_mapping_avc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+                )
             
             # generator     ( style )
-            _, g_losses_ref_avc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_ref_avc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, x_refs=[ref_mel1, ref_mel2], use_adv_cls=use_adv_cls
+                )
             
             # ===== audio-guided image translation =====
             # discriminator ( mapping )
-            _, d_losses_mapping_ait = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_mapping_ait = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trg=latent_code, use_r1_reg=False
+                )
             
             # discriminator ( style )
-            _, d_losses_ref_ait = compute_image_d_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_ref_ait = compute_image_d_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, x_ref=ref_mel1, withAudio=True, use_r1_reg=False
+                )
             
             # generator     ( mapping )
-            _, g_losses_mapping_ait = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_mapping_ait = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, z_trgs=[latent_code, latent_code2]
+                )
             
             # generator     ( style )
-            _, g_losses_ref_ait = compute_image_g_loss(
-                self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_ref_ait = compute_image_g_loss(
+                    self.model, self.args, img, img_gender, ref_audio_gender, x_refs=[ref_mel1, ref_mel2], withAudio=True
+                )
             
             # ===== image-guided voice conversion =====
             # discriminator ( mapping )
-            _, d_losses_mapping_ivc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_mapping_ivc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trg=latent_code, use_adv_cls=use_adv_cls, use_r1_reg=False
+                )
             
             # discriminator ( style )
-            _, d_losses_ref_ivc = compute_audio_d_loss(
-                self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_r1_reg=False, withImage=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, d_losses_ref_ivc = compute_audio_d_loss(
+                    self.model, self.args.d_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_ref=ref_img1, use_adv_cls=use_adv_cls, use_r1_reg=False, withImage=True
+                )
             
             # generator     ( mapping )
-            _, g_losses_mapping_ivc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_mapping_ivc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_audio_gender, ref_audio_id, z_trgs=[latent_code, latent_code2], use_adv_cls=use_adv_cls
+                )
             
             # generator     ( style )
             # ここのloss_f0のcompute_mean_f0がバッチサイズ1に対応していない
             # そのため、dataloaderでdrop_lastしていないと余った分が1個だった場合エラーが出る
-            _, g_losses_ref_ivc = compute_audio_g_loss(
-                self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
-            )
+            with torch.autocast(device_type=self.device, dtype=torch.float16, enabled=self.args.use_amp):
+                _, g_losses_ref_ivc = compute_audio_g_loss(
+                    self.model, self.args.g_loss, mel, audio_gender, audio_id, ref_img_gender, ref_audio_id, x_refs=[ref_img1, ref_img2], use_adv_cls=use_adv_cls, withImage=True
+                )
             
             wandb.log({
                 "val/by_tasktask/iit/d_mapping": dict(d_losses_mapping_iit),

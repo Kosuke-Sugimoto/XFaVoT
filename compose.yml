@@ -24,13 +24,13 @@ services:
         source: ./
         target: /work/
       - type: bind
-        source: /mnt/hdd1/Datasets/Raw/
+        source: /home/ryutaroando/SugimotoWorkspace/Datasets/raw/ # /mnt/hdd1/Datasets/Raw/
         target: /work/Datasets/
       - type: bind
-        source: /mnt/hdd1/Checkpoints/m1_research/XFaVoT
+        source: /home/ryutaroando/SugimotoWorkspace/Checkpoints/ # /mnt/hdd1/Checkpoints/m1_research/XFaVoT
         target: /work/Checkpoints/
       - type: bind
-        source: /mnt/hdd2/Results/m1_research/XFaVoT
+        source: /home/ryutaroando/SugimotoWorkspace/Results/ # /mnt/hdd2/Results/m1_research/XFaVoT
         target: /work/Results/
     working_dir: /work
     # サービスへのgpuの割り当て
